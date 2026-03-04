@@ -1,9 +1,12 @@
 import wave
 import os
-import struct
 import argparse
 from pyambelib import AmbeDecoder
 from descramble import descramble_burst, generate_pn_sequence_196
+from burst_common import (
+    BURST_HEADER, FRAME_SIZE_2450, BURST_SIZE_2450,
+    read_burst_payloads, write_wav_header, samples_to_pcm,
+)
 
 def decode_burst_ambe_2450_descramble(input_filename, output_filename, key):
     """
@@ -21,33 +24,20 @@ def decode_burst_ambe_2450_descramble(input_filename, output_filename, key):
 
     try:
         with open(input_filename, 'rb') as fin, wave.open(output_filename, 'wb') as fout:
-            # WAV設定 (8kHz, 16bit, Mono)
-            fout.setnchannels(1)
-            fout.setsampwidth(2)
-            fout.setframerate(8000)
+            write_wav_header(fout)
 
-            # バースト形式定数
-            BURST_HEADER = b'\xFF'
-            FRAME_SIZE = 8  # 1 byte Header(0x31) + 7 bytes Data
-            FRAMES_PER_BURST = 4
-            BURST_SIZE = 1 + (FRAME_SIZE * FRAMES_PER_BURST)  # 33 bytes
-            
             burst_count = 0
             frame_count = 0
             
             while True:
-                burst_chunk = fin.read(BURST_SIZE)
-                if len(burst_chunk) != BURST_SIZE:
+                burst_chunk = fin.read(BURST_SIZE_2450)
+                if len(burst_chunk) != BURST_SIZE_2450:
                     break
                 
                 if burst_chunk[0:1] != BURST_HEADER:
                     print(f"Warning: Burst {burst_count} sync lost (Header not 0xFF).")
                 
-                # 4フレーム分のペイロードを抽出
-                payloads = []
-                for i in range(FRAMES_PER_BURST):
-                    offset = 1 + (i * FRAME_SIZE)
-                    payloads.append(burst_chunk[offset + 1 : offset + FRAME_SIZE])
+                payloads = read_burst_payloads(burst_chunk, FRAME_SIZE_2450)
                 
                 # スクランブル解除
                 descrambled = descramble_burst(payloads, key_196)
@@ -57,8 +47,7 @@ def decode_burst_ambe_2450_descramble(input_filename, output_filename, key):
                     samples = decoder.decode_2450(descrambled_payload)
                     
                     if samples:
-                        pcm_bytes = struct.pack(f'<{len(samples)}h', *samples)
-                        fout.writeframes(pcm_bytes)
+                        fout.writeframes(samples_to_pcm(samples))
                         frame_count += 1
                 
                 burst_count += 1

@@ -1,9 +1,8 @@
 import wave
 import os
-import struct
 import argparse
 from pyambelib import AmbeDecoder
-# 2450のデコードには fec_demod は不要ですが、パッケージ構成に合わせてimport行は調整してください
+from burst_common import FRAME_SIZE_2450, write_wav_header, samples_to_pcm
 
 def decode_output_ambe_2450(input_filename, output_filename):
 
@@ -19,18 +18,13 @@ def decode_output_ambe_2450(input_filename, output_filename):
 
     try:
         with open(input_filename, 'rb') as fin, wave.open(output_filename, 'wb') as fout:
-            # WAV設定 (8kHz, 16bit, Mono)
-            fout.setnchannels(1)
-            fout.setsampwidth(2)
-            fout.setframerate(8000)
+            write_wav_header(fout)
 
-            # 入力は2450形式 (1 byte Header + 7 bytes Data = 8 bytes)
-            FRAME_SIZE = 8 
             frame_count = 0
             
             while True:
-                chunk = fin.read(FRAME_SIZE)
-                if len(chunk) != FRAME_SIZE:
+                chunk = fin.read(FRAME_SIZE_2450)
+                if len(chunk) != FRAME_SIZE_2450:
                     break
                 
                 # ヘッダチェック (通常 0x31)
@@ -45,9 +39,7 @@ def decode_output_ambe_2450(input_filename, output_filename):
                 samples = decoder.decode_2450(payload)
                 
                 if samples:
-                    # intリストをバイナリ(Little Endian short)に変換して書き込み
-                    pcm_bytes = struct.pack(f'<{len(samples)}h', *samples)
-                    fout.writeframes(pcm_bytes)
+                    fout.writeframes(samples_to_pcm(samples))
                     frame_count += 1
                     
         print(f"完了: {input_filename} -> {output_filename} ({frame_count} frames)")

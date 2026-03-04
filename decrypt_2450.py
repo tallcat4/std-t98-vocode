@@ -1,6 +1,10 @@
 import os
 import argparse
 from descramble import descramble_burst, generate_pn_sequence_196
+from burst_common import (
+    BURST_HEADER, FRAMES_PER_BURST, FRAME_HEADER_2450,
+    FRAME_SIZE_2450, BURST_SIZE_2450, read_burst_payloads,
+)
 
 def decrypt_burst_file(input_filename, output_filename, key):
     """
@@ -12,33 +16,24 @@ def decrypt_burst_file(input_filename, output_filename, key):
 
     key_196 = generate_pn_sequence_196(key)
 
-    BURST_HEADER = b'\xFF'
-    FRAME_HEADER = 0x31
-    FRAME_SIZE = 8
-    FRAMES_PER_BURST = 4
-    BURST_SIZE = 1 + (FRAME_SIZE * FRAMES_PER_BURST)
-
     burst_count = 0
 
     with open(input_filename, 'rb') as fin, open(output_filename, 'wb') as fout:
         while True:
-            burst_chunk = fin.read(BURST_SIZE)
-            if len(burst_chunk) != BURST_SIZE:
+            burst_chunk = fin.read(BURST_SIZE_2450)
+            if len(burst_chunk) != BURST_SIZE_2450:
                 break
 
             if burst_chunk[0:1] != BURST_HEADER:
                 print(f"Warning: Burst {burst_count} sync lost (Header not 0xFF).")
 
-            payloads = []
-            for i in range(FRAMES_PER_BURST):
-                offset = 1 + (i * FRAME_SIZE)
-                payloads.append(burst_chunk[offset + 1 : offset + FRAME_SIZE])
+            payloads = read_burst_payloads(burst_chunk, FRAME_SIZE_2450)
 
             descrambled = descramble_burst(payloads, key_196)
 
             fout.write(BURST_HEADER)
             for payload in descrambled:
-                fout.write(bytes([FRAME_HEADER]))
+                fout.write(bytes([FRAME_HEADER_2450]))
                 fout.write(payload)
 
             burst_count += 1

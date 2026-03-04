@@ -1,6 +1,7 @@
 import os
 import argparse
 from pyambelib import fec_demod
+from burst_common import FRAME_SIZE_3600, bits_to_bytes
 
 def convert_3600_to_2450(input_filename, output_filename):
     """
@@ -13,48 +14,32 @@ def convert_3600_to_2450(input_filename, output_filename):
         print(f"File not found: {input_filename}")
         return
 
-    # 入出力ファイルを開く
     with open(input_filename, 'rb') as fin, open(output_filename, 'wb') as fout:
         
-        INPUT_FRAME_SIZE = 10  # 1 byte Header + 9 bytes Data
         frame_count = 0
         
         while True:
-            # 1フレーム読み込み
-            chunk = fin.read(INPUT_FRAME_SIZE)
-            if len(chunk) != INPUT_FRAME_SIZE:
+            chunk = fin.read(FRAME_SIZE_3600)
+            if len(chunk) != FRAME_SIZE_3600:
                 break
             
             # ヘッダチェック (通常 0x48)
-            # D-STARなどの3600bpsモード識別子
             if chunk[0] != 0x48:
-                pass # 必要に応じて警告などを入れる
+                pass
 
             payload_3600 = chunk[1:]  # 9バイトのペイロード
             
-            # fec_demodを実行してビットストリームを取得 (リスト[int])
+            # fec_demodを実行してビットストリームを取得
             bits = fec_demod(payload_3600)
             
             # ビットのリストをバイト列に変換（MSB first）
-            bytes_from_bits = []
-            for i in range(0, len(bits), 8):
-                byte_val = 0
-                chunk_len = min(8, len(bits) - i)
-                for j in range(chunk_len):
-                    byte_val = (byte_val << 1) | bits[i + j]
-                
-                # パディング（8ビット未満の場合、左詰めにするためのシフト）
-                if chunk_len < 8:
-                    byte_val <<= (8 - chunk_len)
-                
-                bytes_from_bits.append(byte_val)
+            bytes_from_bits = bits_to_bytes(bits)
             
             # 2450モード(音声)は49bit -> 7byteに収まるため、先頭7バイトを抽出
             if len(bytes_from_bits) >= 7:
                 payload_2450 = bytes(bytes_from_bits[:7])
                 
                 # 2450形式のヘッダ(0x31) + ペイロード(7byte) を書き込み
-                # ThumbDVなどで一般的なフォーマット
                 header = b'\x31'
                 fout.write(header + payload_2450)
                 frame_count += 1

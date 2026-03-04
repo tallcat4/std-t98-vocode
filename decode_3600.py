@@ -1,8 +1,11 @@
 import wave
 import os
-import struct
 import argparse
-from pyambelib import AmbeDecoder, fec_demod
+from pyambelib import AmbeDecoder
+from burst_common import (
+    FRAME_SIZE_3600, PAYLOAD_SIZE_2450,
+    fec_demod_to_2450_payload, write_wav_header, samples_to_pcm,
+)
 
 def decode_output_ambe_via_fec(input_filename, output_filename):
 
@@ -18,18 +21,13 @@ def decode_output_ambe_via_fec(input_filename, output_filename):
 
     try:
         with open(input_filename, 'rb') as fin, wave.open(output_filename, 'wb') as fout:
-            # WAV設定 (8kHz, 16bit, Mono)
-            fout.setnchannels(1)
-            fout.setsampwidth(2)
-            fout.setframerate(8000)
+            write_wav_header(fout)
 
-            # 入力は3600形式 (1 byte Header + 9 bytes Data = 10 bytes)
-            FRAME_SIZE = 10 
             frame_count = 0
             
             while True:
-                chunk = fin.read(FRAME_SIZE)
-                if len(chunk) != FRAME_SIZE:
+                chunk = fin.read(FRAME_SIZE_3600)
+                if len(chunk) != FRAME_SIZE_3600:
                     break
                 
                 # ヘッダチェック (通常 0x48)
@@ -39,31 +37,14 @@ def decode_output_ambe_via_fec(input_filename, output_filename):
                 # ペイロード部 (9バイト) を抽出
                 payload = chunk[1:]
                 
-                # 1. FEC (Forward Error Correction) 復調を実行し、ビットストリームを取得
-                bits = fec_demod(payload)
+                # FEC復調 → 2450ペイロードに変換
+                payload_for_2450 = fec_demod_to_2450_payload(payload)
                 
-                # 2. ビット列をバイト列に変換（MSB first）
-                bytes_from_bits = []
-                for i in range(0, len(bits), 8):
-                    byte_val = 0
-                    for j in range(min(8, len(bits) - i)):
-                        byte_val = (byte_val << 1) | bits[i + j]
-                    
-                    # パディング（8ビット未満の場合の左シフト処理）
-                    if len(bits) - i < 8:
-                        byte_val <<= (8 - (len(bits) - i))
-                    bytes_from_bits.append(byte_val)
-                
-                # 3. 復調されたデータの先頭7バイトを抽出 (2450デコーダ用)
-                payload_for_2450 = bytes(bytes_from_bits[:7])
-                
-                # 4. 2450デコーダで音声を合成
+                # 2450デコーダで音声を合成
                 samples = decoder.decode_2450(payload_for_2450)
                 
                 if samples:
-                    # intリストをバイナリ(Little Endian short)に変換して書き込み
-                    pcm_bytes = struct.pack(f'<{len(samples)}h', *samples)
-                    fout.writeframes(pcm_bytes)
+                    fout.writeframes(samples_to_pcm(samples))
                     frame_count += 1
                     
         print(f"完了: {input_filename} -> {output_filename} ({frame_count} frames)")
