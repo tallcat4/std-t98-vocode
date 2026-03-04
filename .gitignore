@@ -1,0 +1,9 @@
+env/
+pyambelib-source/
+temp_save/
+__pycache__/
+*.wav
+output.burst
+decrypted.burst
+*.egg-info/
+*.burst
