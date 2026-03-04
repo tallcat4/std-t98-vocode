@@ -13,7 +13,7 @@ def decode_burst_ambe_2450_descramble(input_filename, output_filename, key):
     バースト形式の2450 AMBE ファイルをスクランブル解除してWAVにデコード
     """
     if not os.path.exists(input_filename):
-        print(f"エラー: {input_filename} が見つかりません。")
+        print(f"Error: {input_filename} not found.")
         return
 
     key_196 = generate_pn_sequence_196(key)
@@ -39,10 +39,8 @@ def decode_burst_ambe_2450_descramble(input_filename, output_filename, key):
                 
                 payloads = read_burst_payloads(burst_chunk, FRAME_SIZE_2450)
                 
-                # スクランブル解除
                 descrambled = descramble_burst(payloads, key_196)
                 
-                # 各フレームをデコード
                 for descrambled_payload in descrambled:
                     samples = decoder.decode_2450(descrambled_payload)
                     
@@ -52,10 +50,10 @@ def decode_burst_ambe_2450_descramble(input_filename, output_filename, key):
                 
                 burst_count += 1
                     
-        print(f"完了: {input_filename} -> {output_filename} ({burst_count} bursts processed)")
+        print(f"Done: {input_filename} -> {output_filename} ({burst_count} bursts processed)")
 
     except Exception as e:
-        print(f"エラーが発生しました: {e}")
+        print(f"An error occurred: {e}")
         import traceback
         traceback.print_exc()
 

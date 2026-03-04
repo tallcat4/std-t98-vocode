@@ -7,6 +7,9 @@ from burst_common import (
 )
 
 def convert_burst_3600_to_2450(input_filename, output_filename):
+    """
+    バースト形式の3600bps AMBEファイルからFEC情報を除去し、2450bps形式に変換する
+    """
     if not os.path.exists(input_filename):
         print(f"File not found: {input_filename}")
         return
@@ -20,28 +23,21 @@ def convert_burst_3600_to_2450(input_filename, output_filename):
 
     with open(input_filename, 'rb') as fin, open(output_filename, 'wb') as fout:
         while True:
-            # 1バイト読み込んでヘッダ(0xFF)を探す（同期サーチ）
             header_byte = fin.read(1)
             if not header_byte:
-                break # EOF
+                break
             
             if header_byte != BURST_HEADER:
-                # 0xFFでない場合、次のバイトへ（同期外れ）
                 sync_lost_count += 1
                 continue
             
-            # 0xFFが見つかったら、残りのバイト(バーストの残り)を読み込む
             remaining_burst = fin.read(BURST_SIZE_3600 - 1)
             if len(remaining_burst) != (BURST_SIZE_3600 - 1):
-                break # ファイル末尾でデータ不足
+                break
             
-            # チャンクを再構築 (0xFF + 残り)
             chunk = header_byte + remaining_burst
-            
-            # 出力用バッファ (0xFFから開始)
             output_buffer = bytearray(BURST_HEADER)
 
-            # 4フレーム処理
             for i in range(FRAMES_PER_BURST):
                 offset = 1 + (i * FRAME_SIZE_3600)
                 

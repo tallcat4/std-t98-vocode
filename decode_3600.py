@@ -8,13 +8,13 @@ from burst_common import (
 )
 
 def decode_output_ambe_via_fec(input_filename, output_filename):
-
-    # ファイルの存在確認
+    """
+    3600bps形式のAMBEファイルをFEC復調し、WAVにデコードする
+    """
     if not os.path.exists(input_filename):
-        print(f"エラー: {input_filename} が見つかりません。")
+        print(f"Error: {input_filename} not found.")
         return
 
-    # デコーダのインスタンス生成
     decoder = AmbeDecoder()
     
     print(f"Decoding {input_filename} (FEC demod -> 2450 decode)...")
@@ -30,27 +30,23 @@ def decode_output_ambe_via_fec(input_filename, output_filename):
                 if len(chunk) != FRAME_SIZE_3600:
                     break
                 
-                # ヘッダチェック (通常 0x48)
                 if chunk[0] != 0x48:
                     pass
 
-                # ペイロード部 (9バイト) を抽出
                 payload = chunk[1:]
                 
-                # FEC復調 → 2450ペイロードに変換
                 payload_for_2450 = fec_demod_to_2450_payload(payload)
                 
-                # 2450デコーダで音声を合成
                 samples = decoder.decode_2450(payload_for_2450)
                 
                 if samples:
                     fout.writeframes(samples_to_pcm(samples))
                     frame_count += 1
                     
-        print(f"完了: {input_filename} -> {output_filename} ({frame_count} frames)")
+        print(f"Done: {input_filename} -> {output_filename} ({frame_count} frames)")
 
     except Exception as e:
-        print(f"エラーが発生しました: {e}")
+        print(f"An error occurred: {e}")
         import traceback
         traceback.print_exc()
 

@@ -10,17 +10,10 @@ from burst_common import (
 
 def decode_burst_ambe_via_fec(input_filename, output_filename):
     """
-    バースト形式の3600 AMBE ファイルをWAVにデコード
-    
-    Burst Structure (41 bytes):
-      [0xFF] 
-      + [0x48][9bytes] (Frame 1)
-      + [0x48][9bytes] (Frame 2)
-      + [0x48][9bytes] (Frame 3)
-      + [0x48][9bytes] (Frame 4)
+    バースト形式の3600 AMBEファイルをWAVにデコードする
     """
     if not os.path.exists(input_filename):
-        print(f"エラー: {input_filename} が見つかりません。")
+        print(f"Error: {input_filename} not found.")
         return
 
     decoder = AmbeDecoder()
@@ -54,10 +47,10 @@ def decode_burst_ambe_via_fec(input_filename, output_filename):
                 
                 burst_count += 1
                     
-        print(f"完了: {input_filename} -> {output_filename} ({burst_count} bursts, {frame_count} frames)")
+        print(f"Done: {input_filename} -> {output_filename} ({burst_count} bursts, {frame_count} frames)")
 
     except Exception as e:
-        print(f"エラーが発生しました: {e}")
+        print(f"An error occurred: {e}")
         import traceback
         traceback.print_exc()
 

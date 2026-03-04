@@ -11,7 +11,7 @@ def decrypt_burst_file(input_filename, output_filename, key):
     バースト形式の2450 AMBEファイルをスクランブル解除し、新しいバーストファイルとして出力
     """
     if not os.path.exists(input_filename):
-        print(f"エラー: {input_filename} が見つかりません。")
+        print(f"Error: {input_filename} not found.")
         return
 
     key_196 = generate_pn_sequence_196(key)
@@ -38,7 +38,7 @@ def decrypt_burst_file(input_filename, output_filename, key):
 
             burst_count += 1
 
-    print(f"完了: {input_filename} -> {output_filename} ({burst_count} bursts)")
+    print(f"Done: {input_filename} -> {output_filename} ({burst_count} bursts)")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Decrypt 2450 bps burst format AMBE files")
