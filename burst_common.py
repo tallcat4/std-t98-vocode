@@ -2,7 +2,6 @@
 AMBEバースト処理共通モジュール
 """
 import struct
-from pyambelib import fec_demod
 
 # ── バースト共通定数 ──
 BURST_HEADER = b'\xFF'
@@ -25,9 +24,16 @@ def read_burst_payloads(burst_chunk, frame_size):
     """
     バーストチャンクから4フレーム分のペイロードを抽出する。
     """
+    if frame_size not in (8, 10) or len(burst_chunk) != 1 + 4 * frame_size or burst_chunk[0] != 255:
+        raise ValueError("Invalid burst size or boundary")
+    marker = 49 if frame_size == 8 else 72
     payloads = []
     for i in range(FRAMES_PER_BURST):
         offset = 1 + (i * frame_size)
+        if burst_chunk[offset] != marker:
+            raise ValueError("Invalid or mixed frame marker")
+        if marker == 49 and burst_chunk[offset + frame_size - 1] & 127:
+            raise ValueError("Nonzero 49-bit padding")
         payloads.append(burst_chunk[offset + 1 : offset + frame_size])
     return payloads
 
@@ -52,17 +58,16 @@ def fec_demod_to_2450_payload(payload_3600):
     """
     3600bpsペイロード(9バイト)をFEC復調し、2450bpsペイロード(7バイト)に変換する。
     """
-    try:
-        bits = fec_demod(payload_3600)
-    except Exception:
-        return b'\x00' * 7
+    from std_t98_vocode import load_codec
+    if len(payload_3600) != 9:
+        raise ValueError("FEC requires 9 bytes")
+    bits = list(load_codec().fec_demod(payload_3600))
+    if len(bits) != 49 or any(v not in (0, 1) for v in bits):
+        raise ValueError("FEC decoder returned invalid bits")
 
     bytes_from_bits = bits_to_bytes(bits)
 
-    if len(bytes_from_bits) >= 7:
-        return bytes(bytes_from_bits[:7])
-    else:
-        return b'\x00' * 7
+    return bytes(bytes_from_bits)
 
 
 def write_wav_header(wav_file):

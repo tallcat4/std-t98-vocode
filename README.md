@@ -1,127 +1,70 @@
 # std-t98-vocode
 
-ARIB STD-T98 (デジタル簡易無線) のAMBE+2音声データをデコード・復調・復号するための Python ツール群です。
+STD-T98のAMBEファイルをWAVへ変換する開発用CLIです。3兄弟のうち音声化と明示的FEC変換を担当します。
 
-## 概要
+| ツール | 担当 |
+|---|---|
+| [std-t98-receiver](https://github.com/tallcat4/std-t98-receiver) | RTL-SDR / IQから72-bit `.burst`を保存 |
+| [std-t98-cracker](https://github.com/tallcat4/std-t98-cracker) | 明示した方式で鍵解析、指定鍵で49-bit `.burst`へ変換 |
+| std-t98-vocode | ファイルからWAV、またはFECだけの変換 |
 
-本リポジトリには、[std-t98-tools](https://github.com/tallcat4/std-t98-tools)のフロントエンドなどから出力されたデジタル簡易無線のAMBE+2音声データ (`.ambe` および `.burst` ファイル) の処理を行うスクリプトが含まれています。受信した音声データに対して、2450bpsおよび3600bpsのAMBE+2データからWAV形式音声への変換や、FEC (前方誤り訂正) の復調、および標準秘話の復号を行うためのツール群を提供します。
+受信や鍵探索を自動で起動しません。通常の受け渡しは`.burst`、`.ambe`は既存ツールとの互換用です。
+バイト順・長さは[FORMAT.md](FORMAT.md)。
 
-## ファイル構成
+## Windowsで準備
 
-- **AMBE音声ファイルからのWAVデコード**
-  - `decode_2450.py`: 2450bps形式の `.ambe` ファイルをデコードし、WAVファイルを出力します。
-  - `decode_2450_burst.py`: ペイロードに加えてフレームの開始位置を示すヘッダが付加された 2450bps形式の `.burst` ファイルをデコードし、WAVファイルを出力します。
-  - `decode_3600.py`: 3600bps形式の `.ambe` ファイルからFEC復調処理を行い、2450bpsフォーマットを経てWAVファイルとしてデコードします。
-  - `decode_3600_burst.py`: 各フレームのヘッダを含む 3600bps形式の `.burst` ファイルからFEC復調を行い、WAVファイルを出力します。
+Python 3.11以上と64-bit MinGW Cコンパイラが必要です。ビルド済みpyambelibがある場合はそのまま使えます。
+このPCのPython 3.14 / GCC 13.2では次の方法で音声生成を確認しました。
 
-- **FEC処理ツール**
-  - `fec_demod.py`: 3600bps形式の `.ambe` ファイルをFEC復調し、2450bps形式の `.ambe` ファイルに変換します。
-  - `fec_demod_burst.py`: 3600bps形式の `.burst` ファイルをFEC復調し、2450bps形式の `.burst` ファイルに変換します。
+```powershell
+git clone https://github.com/tallcat4/pyambelib.git pyambelib-source
+git -C pyambelib-source checkout 7dc77dc2d953869287b3838f993d6dc52701e4aa
+.\build.ps1
+python -m pip install -e .
+```
 
-- **秘話通信の復号ツール**
-  - `decrypt_2450.py`: 暗号化された 2450bps形式の `.burst` ファイルを指定された秘話コードを用いて復号し、新たな `.burst` ファイルとして保存します。
-  - `decrypt_decode_2450.py`: 指定された秘話コードを用いて暗号化された `.burst` ファイルを復号し、WAVファイルとして直接出力します。
-  - `descramble.py`: STD-T98で用いられるLFSRに基づくスクランブルおよびスクランブル解除のための共通処理モジュールです。
+通常の`pip install ./pyambelib-source`は、この依存の現行MSVC設定では数学定数等のビルドエラーになります。
+`build.ps1`は同じソースをMinGWでctypes用DLLとしてビルドし、`build/pyambelib`へ配置します。
+Python C APIを使わないためPython ABIへのリンクは不要です。依存ソースは変更しません。
+CLIはインストール済みpyambelibを優先し、未インストールならこのローカルビルドを読みます。
+この方式はチェックアウトからの実行またはeditable install向けです。通常のwheelには別途pyambelibを用意してください。
 
-- **共通・ユーティリティモジュール**
-  - `burst_common.py`: バーストペイロードの抽出や、FEC復調後のバイト列への変換、WAVファイル書き出し用の共通処理を提供します。
-
-## 必要なパッケージ
-
-- [pyambelib](https://github.com/tallcat4/pyambelib) 
+Linux等では[pyambelib](https://github.com/tallcat4/pyambelib)を先にインストールしてください。
+ファイルの`inspect`と`--help`にはボコーダーは不要です。
 
 ## 使い方
 
-抽出された音声データファイル (.ambe または .burst) をWAVに変換するための基本的な使用例です。
-
-直接2450bpsデータ (.ambe) をWAVに変換する場合:
-```bash
-python decode_2450.py -i input.ambe -o output.wav
+```powershell
+python -m std_t98_vocode inspect capture.burst
+# 平文のreceiver出力は72-bitのまま音声化
+python -m std_t98_vocode decode capture.burst -o clear.wav
+# crackerが指定鍵で変換した49-bit出力
+python -m std_t98_vocode decode descrambled.burst -o descrambled.wav
+# FECだけ
+python -m std_t98_vocode fec capture.burst -o fec.burst
+# .ambeは境界がないので明示する
+python -m std_t98_vocode decode legacy.ambe --container ambe -o legacy.wav
 ```
 
-バーストデータ (.burst) の2450bpsをWAVに変換する場合:
-```bash
-python decode_2450_burst.py -i input.burst -o output.wav
+72/49 bitはフレームマーカーから判定します。ファイル形式の判定だけで、秘話の自動判定や鍵探索ではありません。
+秘話がかかったままのデータをdecodeしても正しい音声にはなりません。鍵の解析と解除はcrackerで明示的に行います。
+
+WAVは8 kHz / 16-bit signed little-endian / mono、1フレーム160サンプル。
+欠けた時間や無通信区間はファイルに記録されていないので補間しません。
+破損した長さ、マーカー、49-bit paddingはエラーです。FFを検索して勝手に同期し直すことはしません。
+上書きは拒否します。終了コード0=成功、1=処理エラー（引数エラーはargparseの2）。
+pyambelibのFEC APIは訂正不能状態を返しません。品質検証にはcrackerのFEC統計/LLRも利用してください。
+
+## 従来のスクリプト
+
+`decode_2450.py`、`decode_3600.py`、それぞれの`_burst.py`、`fec_demod.py`、`fec_demod_burst.py`は従来の`-i / -o`で使用可能です。
+内部の検証と失敗時の終了コードを共通化しました。
+`decrypt_2450.py`、`decrypt_decode_2450.py`は明示的`-k 0..32767`付きの互換コマンドとして残しています。
+新しい系列の追加はcrackerに集約してください。
+
+```powershell
+python -m unittest discover -s tests -v
 ```
 
-FECを含む3600bpsボイスパケット (.burst) をWAVに変換する場合:
-```bash
-python decode_3600_burst.py -i input_3600.burst -o output.wav
-```
-
-### 秘話の解読処理を行う場合
-
-`output.ambe`は単純にAMBE+2音声データのみを順番にバイナリに書き出したものですが、`output.burst`はこれに加えて、受信したデータにおけるフレームの開始位置を示すデータを加えたものです。
-STD-T98では、1フレームに4つのAMBE+2音声データが含まれています。特にデジタル簡易無線の秘話処理はフレーム単位で行われるため、秘話がかかった音声を復元する場合は、どこがフレームの開始位置なのかを把握する必要があります。
-そのため、秘話の解読処理を行う場合は `.ambe` ではなく `.burst` ファイルを用いて、フレームの開始位置を示す `0xFF` から4つの音声パケットを順番に取得し復号します。
-
-## `std-t98-tools` とセットでの使用例
-
-本ツール群は、[std-t98-tools](https://github.com/tallcat4/std-t98-tools) が受信・復調フロントエンドが出力したファイルに対して処理を行うことを前提としています。
-以下は、受信から音声復元までの一連の標準的なワークフロー例です。
-
-**1. 受信環境の起動**
-まず、`std-t98-tools` 側で GNU Radio バックエンドと Python フロントエンドの両方を起動し、通信を受信できる状態にします。
-
-**2. テスト送信の実施**
-お手持ちのデジタル簡易無線機で音声を送信します。
-
-**3. 受信データの確認**
-正常に受信・復調されていれば、フロントエンドを動かしているターミナル上に約80msごとに各チャネル（RICH, SACCH, PICH, TCH等）の情報が出力されます。同時に、プログラムの実行ディレクトリに `output.ambe` と `output.burst` が生成され、音声フレームが追記されていきます。
-
-**4. 受信の停止**
-任意のタイミングで無線機の送信を終了し、`std-t98-tools` 側のフロントエンドプログラムを停止させます。
-
-**5. 処理対象ファイルの準備**
-生成された `output.burst` を、本リポジトリ (`std-t98-vocode`) の作業ディレクトリへコピーします。
-（`.ambe` ファイルでも基本的なデコードは可能ですが、秘話通信の復号を行う場合にはフレームの開始位置を示すヘッダが必要となるため、常に `.burst` ファイルを使用することを推奨します。秘話の有無にかかわらず `.burst` を使うのが確実です）
-
-**6. FECの復調**
-送信側では秘話処理を行った後にFECの付加を行っているため、受信側では秘話の有無にかかわらず、最初にFECの復調を行います。
-以下のコマンドで、3600bps形式のバーストデータから誤り訂正を行い、2450bps形式のバーストデータへ変換します。
-```bash
-python fec_demod_burst.py -i output.burst -o fec_output.burst
-```
-これにより、TCHチャネルの3600bpsのAMBEフレームが2450bpsに変換されます。
-
-**7. 音声のデコードと秘話の復号**
-最後に、FEC復調後のバーストデータ（2450bps）からWAV音声へ変換します。
-
-- **秘話がかかっている場合**
-  LFSRキー（例: `123456`）を指定して `decrypt_decode_2450.py` を実行します。
-  ```bash
-  python decrypt_decode_2450.py -i fec_output.burst -o decrypted.wav -k 123456
-  ```
-
-- **秘話がかかっていない場合**
-  `decode_2450_burst.py` を使用してデコードします。
-  ```bash
-  python decode_2450_burst.py -i fec_output.burst -o output.wav
-  ```
-  （※秘話がない状態で `decrypt_decode_2450.py` を使用しても、キーに `0` を指定すれば実質的に秘話処理が行われないため、同じようにWAVを取得できます：`-k 0`）
-
-これで出力されたWAVファイル (`decrypted.wav` または `output.wav`) を再生すると、受信した音声が聞こえるはずです。
-
-## 秘話コードの自動解読について
-
-現在、秘話解読を行うためのキーはユーザーが手動で与える必要があります。
-現代のコンピュータの計算能力をもってすれば、考えうる 2^15 通りのすべての秘話コードに対してLFSRの出力を生成し、受信データとXOR演算を行ってAMBEデコーダで復調を試みる総当たりは一瞬で完了します。
-しかし最大の問題点は、出力された 2^15 個の音声データのうち、どれが正しい鍵で復元された正当な音声かを、最終的に人間が耳で聞いて判別しなければならないという点にあります。
-
-この課題を解決するため、現在本プロジェクトでは、デコード結果を自動で評価できるDNN（シンプルなFFNNによる分類、あるいは変分オートエンコーダによる再構成誤差による評価）を用いた分類器の開発・組み込みを含めたアップデートを予定しています。
-
-この分類器は、与えられたビット列が正しい鍵で復号されたAMBE+2音声データ特有の構造や統計的性質を持っているか、あるいは誤った鍵候補でXORされたことによって生じた、単なる無意味な疑似乱数列になっているかを高精度かつ高速に判定します。実用上十分な分類性能と速度、軽量性（N100などのローエンドCPUですら毎秒数十万推論/s、軽量なモデルでは1000万推論/s以上）がすでに確認されており、これをシステムに組み込むことで、2^15 通りの鍵候補の中から正解となる鍵を瞬時に、かつ自動で特定することが可能になります。
-
-なお、無音時のデータなど、AMBE+2の特定のフレームが持つ特徴的な構造を利用すれば、DNNのような確率的な分類器に頼らずとも、より決定論的かつ軽量なアルゴリズムで鍵空間を劇的に絞り込むことも可能であると考えられます。
-現在は、実装が容易で直感的に動作を検証できるDNNによるアプローチを先行して試行・実装を進めている段階です。
-
-ALINCOの強化秘話については、いつか手元に実機が手に入ったら解析してみるかもしれません。
-
-## 免責事項
-
-このリポジトリに含まれるソースコードは、教育および研究目的のみを意図して公開されています。商用利用等、その他の目的での利用に関する法的な問題について、当方は一切の責任を負いません。
-
-## 参考文献
-
-FEC (前方誤り訂正) の処理については以下を参考に実装されています:
-- APCO Project 25 Half-Rate Vocoder, TIA-102.BABA, 2009.
+元のvocode基準commit: `4ee64c264b6a1d6ff81a8741c4a139044871c0c2`。
+pyambelib/mbelib-neoのライセンスと著作権は取得した依存ソース内に保持します。実録音は同梱しません。

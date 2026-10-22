@@ -7,3 +7,12 @@ output.burst
 decrypted.burst
 *.egg-info/
 *.burst
+/build/
+/dist/
+/.venv/
+*.ambe
+*.llr
+*.dll
+*.so
+*.dylib
+.pytest_cache/
