@@ -1,6 +1,7 @@
 # std-t98-vocode
 
 STD-T98のAMBEファイルをWAVへ変換する開発用CLIです。3兄弟のうち音声化と明示的FEC変換を担当します。
+音声合成とFECには[ambe2-c](https://github.com/tallcat4/ambe2-c)を使います。pyambelibは不要です。
 
 | ツール | 担当 |
 |---|---|
@@ -13,23 +14,24 @@ STD-T98のAMBEファイルをWAVへ変換する開発用CLIです。3兄弟の�
 
 ## Windowsで準備
 
-Python 3.11以上と64-bit MinGW Cコンパイラが必要です。ビルド済みpyambelibがある場合はそのまま使えます。
-このPCのPython 3.14 / GCC 13.2では次の方法で音声生成を確認しました。
+Python 3.11以上、Git、64-bit MinGW Cコンパイラが必要です。
+このPCのPython 3.14 / GCC 13.2では次の方法でビルドできます。
 
 ```powershell
-git clone https://github.com/tallcat4/pyambelib.git pyambelib-source
-git -C pyambelib-source checkout 7dc77dc2d953869287b3838f993d6dc52701e4aa
+git clone https://github.com/tallcat4/ambe2-c.git ambe2-c-source
+git -C ambe2-c-source checkout bfa9c26b203117d65c68303a87968fd7e89855d9
 .\build.ps1
 python -m pip install -e .
 ```
 
-通常の`pip install ./pyambelib-source`は、この依存の現行MSVC設定では数学定数等のビルドエラーになります。
-`build.ps1`は同じソースをMinGWでctypes用DLLとしてビルドし、`build/pyambelib`へ配置します。
-Python C APIを使わないためPython ABIへのリンクは不要です。依存ソースは変更しません。
-CLIはインストール済みpyambelibを優先し、未インストールならこのローカルビルドを読みます。
-この方式はチェックアウトからの実行またはeditable install向けです。通常のwheelには別途pyambelibを用意してください。
+`build.ps1`は`build.py`を呼び、固定リビジョンのソースを変更せず`build/ambe2.dll`へビルドします。
+ambe2-c付属の参照ベクトル検証も実行します。コンパイラを指定する場合は`-Compiler PATH`を使います。
+Python C APIへのリンクは不要です。既存の`pyambelib-source`や`build/pyambelib`は読みません。
 
-Linux等では[pyambelib](https://github.com/tallcat4/pyambelib)を先にインストールしてください。
+Linux/macOSでは同じソース取得後に`python build.py`を実行します（GCC/Clang、`--compiler PATH`も可）。
+出力は`build/libambe2.so`または`build/libambe2.dylib`です。Windows以外はこの移行では実機検証していません。
+通常はチェックアウトからの実行またはeditable installを使います。
+wheelへネイティブライブラリは同梱しません。別置きする場合は環境変数`STD_T98_AMBE2_LIBRARY`にライブラリの絶対パスを指定してください。
 ファイルの`inspect`と`--help`にはボコーダーは不要です。
 
 ## 使い方
@@ -53,7 +55,9 @@ WAVは8 kHz / 16-bit signed little-endian / mono、1フレーム160サンプル�
 欠けた時間や無通信区間はファイルに記録されていないので補間しません。
 破損した長さ、マーカー、49-bit paddingはエラーです。FFを検索して勝手に同期し直すことはしません。
 上書きは拒否します。終了コード0=成功、1=処理エラー（引数エラーはargparseの2）。
-pyambelibのFEC APIは訂正不能状態を返しません。品質検証にはcrackerのFEC統計/LLRも利用してください。
+72-bitの音声化はambe2-cのFEC付きAPIを直接使い、訂正不可フレームには同APIの音声補間を適用します。
+49-bitはThumbDV順のAPIで音声化します。明示的`fec`変換は従来どおり49-bit ThumbDV順で保存し、
+訂正不可でもbest-effortのビットを保存します（形式には訂正可否を格納する欄がありません）。品質検証にはcrackerのFEC統計/LLRを利用してください。
 
 ## 従来のスクリプト
 
@@ -67,4 +71,6 @@ python -m unittest discover -s tests -v
 ```
 
 元のvocode基準commit: `4ee64c264b6a1d6ff81a8741c4a139044871c0c2`。
-pyambelib/mbelib-neoのライセンスと著作権は取得した依存ソース内に保持します。実録音は同梱しません。
+ambe2-cの使用リビジョン: `bfa9c26b203117d65c68303a87968fd7e89855d9`。
+MIT/ISC等のライセンス・著作権表示は取得した依存ソース内の`LICENSE`、`decoder/LICENSE`、`decoder/include/mbelib.h`に保持します。
+実録音は同梱しません。

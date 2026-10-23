@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "std-t98-vocode"
-version = "0.2.0"
+version = "0.3.0"
 description = "Explicit STD-T98 burst/AMBE file to WAV conversion"
 requires-python = ">=3.11"
 
@@ -12,4 +12,4 @@ requires-python = ">=3.11"
 std-t98-vocode = "std_t98_vocode:main"
 
 [tool.setuptools]
-py-modules = ["std_t98_vocode", "burst_common", "descramble"]
+py-modules = ["std_t98_vocode", "ambe2_codec", "burst_common", "descramble"]

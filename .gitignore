@@ -1,5 +1,6 @@
 env/
 pyambelib-source/
+ambe2-c-source/
 temp_save/
 __pycache__/
 *.wav

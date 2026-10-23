@@ -4,20 +4,14 @@ import json
 from pathlib import Path
 import sys
 import wave
-import importlib.util
 
 from burst_common import bits_to_bytes, write_wav_header, samples_to_pcm
 
 
 def load_codec():
-    if importlib.util.find_spec("pyambelib") is None:
-        local = Path(__file__).resolve().parent / "build"
-        if (local / "pyambelib" / "__init__.py").is_file():
-            sys.path.insert(0, str(local))
-        else:
-            raise ImportError("pyambelib is required for decode/fec; see README (Windows: build.ps1)")
-    import pyambelib
-    return pyambelib
+    import ambe2_codec
+    ambe2_codec.library()
+    return ambe2_codec
 
 
 def records(path, container="burst", expected=None):
@@ -77,7 +71,7 @@ def convert(source, destination, operation="decode", container="burst", expected
     fec = None
     if operation == "decode":
         decoder = load_codec().AmbeDecoder()
-    if report["bits_per_frame"] == 72:
+    if operation == "fec":
         fec = load_codec().fec_demod
     if key is not None:
         from descramble import descramble_burst, generate_pn_sequence_196
@@ -88,7 +82,7 @@ def convert(source, destination, operation="decode", container="burst", expected
             if wav:
                 write_wav_header(wav)
             for bits, payloads in records(source, container, expected):
-                if bits == 72:
+                if bits == 72 and operation == "fec":
                     converted = []
                     for payload in payloads:
                         values = list(fec(payload))
@@ -100,7 +94,7 @@ def convert(source, destination, operation="decode", container="burst", expected
                     payloads = descramble_burst(payloads, pn)
                 if wav:
                     for payload in payloads:
-                        samples = decoder.decode_2450(payload)
+                        samples = decoder.decode_3600(payload) if bits == 72 else decoder.decode_2450(payload)
                         if len(samples) != 160:
                             raise ValueError("Vocoder must return 160 samples per 20 ms frame")
                         wav.writeframes(samples_to_pcm(samples))
