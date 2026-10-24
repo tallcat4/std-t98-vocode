@@ -6,7 +6,7 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parent
-REVISION = "bfa9c26b203117d65c68303a87968fd7e89855d9"
+REVISION = "70e32cbfc1cf5a08f3e9a3fbe41f6a9873cc4ca6"
 SOURCES = (
     "b25_dsp_a.c b25_dsp_b.c b25_decode_c.c b25_decode_d.c b25_tables.c "
     "b25_golay.c blip25.c mbelib_compat.c ambeplus.c ambeplus_tables.c "
@@ -45,7 +45,7 @@ def main():
         name, shared, link, suffix = "libambe2.so", ["-shared", "-fPIC"], ["-lm"], ""
     def run(command):
         subprocess.run(command, check=True)
-    run(flags + shared + sources + link + ["-o", str(build / name)])
+    run(flags + shared + sources + [str(ROOT / "native/codec_abi.c")] + link + ["-o", str(build / name)])
     # Native oracle for adapter/bit-order tests and upstream fixed-point vectors.
     for target, entry in (("ambe2wav", "examples/ambe2wav.c"), ("ambe2-tests", "tests/run_tests.c")):
         run(flags + [str(decoder / entry)] + sources + link + ["-o", str(build / (target + suffix))])

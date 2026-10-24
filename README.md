@@ -15,10 +15,12 @@ WindowsではPython 3.11以上、Git、64-bit MinGW（GCC）が必要です。
 
 ```powershell
 git clone https://github.com/tallcat4/ambe2-c.git ambe2-c-source
-git -C ambe2-c-source checkout bfa9c26b203117d65c68303a87968fd7e89855d9
+git -C ambe2-c-source checkout 70e32cbfc1cf5a08f3e9a3fbe41f6a9873cc4ca6
 .\build.ps1
 python -m pip install -e .
 ```
+
+既存環境を更新する場合は、`ambe2-c-source`で`git fetch`後に上記リビジョンへ切り替え、`build.ps1`を再実行してください。
 
 ## 使い方
 

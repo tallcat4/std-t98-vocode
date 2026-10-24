@@ -6,11 +6,6 @@ from pathlib import Path
 import sys
 
 
-class _DecoderState(ct.Structure):
-    # Public blip25_decoder layout in the pinned decoder/include/blip25.h.
-    _fields_ = [("state", ct.c_int16 * 0x400), ("bits", ct.c_int16 * 256)]
-
-
 @lru_cache(maxsize=1)
 def library():
     name = "ambe2.dll" if sys.platform == "win32" else "libambe2.dylib" if sys.platform == "darwin" else "libambe2.so"
@@ -18,7 +13,14 @@ def library():
     if not path.is_file():
         raise ImportError(f"ambe2-c library not found: {path}; run build.ps1 / python build.py (see README)")
     lib = ct.CDLL(str(path))
-    state = ct.POINTER(_DecoderState)
+    # The upstream state grew in newer revisions. Let the compiled header
+    # determine its size instead of duplicating a private layout in Python.
+    try:
+        lib.std_t98_ambe2_decoder_size.argtypes = []
+        lib.std_t98_ambe2_decoder_size.restype = ct.c_size_t
+    except AttributeError as exc:
+        raise ImportError('Outdated ambe2-c adapter library; rebuild with build.ps1 / python build.py') from exc
+    state = ct.c_void_p
     byte = ct.POINTER(ct.c_uint8)
     pcm = ct.POINTER(ct.c_int16)
     lib.blip25_init.argtypes = [state]
@@ -46,7 +48,7 @@ class AmbeDecoder:
     """One independent decoder state per continuous audio stream."""
     def __init__(self):
         self._lib = library()
-        self._state = _DecoderState()
+        self._state = ct.create_string_buffer(self._lib.std_t98_ambe2_decoder_size())
         self._lib.blip25_init(ct.byref(self._state))
 
     def decode_2450(self, payload):
